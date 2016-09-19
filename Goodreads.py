@@ -3,6 +3,7 @@ import xmltodict
 import traceback
 import pprint
 import json
+import time
 
 import Config
 
@@ -17,6 +18,7 @@ def addApiKey(r):
 	return r + "?key=" + GOODREADSKEY
 
 def makeRequest(r):
+	time.sleep(1)
 	return requests.get(addApiKey(r))
 
 def parseResponse(response):
@@ -34,9 +36,9 @@ def searchForBook(title, author = None):
 	bookId = int(results[0]["best_book"]["id"]["#text"])
 	bookAuthorId = int(results[0]["best_book"]["author"]["id"]["#text"])
 
-	averageRating = float(results[0]["average_rating"])
-	bookTitle = str(results[0]["best_book"]["title"])
-	bookAuthor = str(results[0]["best_book"]["author"]["name"])
+	# averageRating = float(results[0]["average_rating"])
+	# bookTitle = str(results[0]["best_book"]["title"])
+	# bookAuthor = str(results[0]["best_book"]["author"]["name"])
 
 	# print type(averageRating), averageRating
 	# print type(bookId), bookId
@@ -52,6 +54,22 @@ def searchForBook(title, author = None):
 
 	return bookId, bookAuthorId
 
+excludedShelves = [
+	"to-read",
+	"currently-reading",
+	"favorites",
+	"owned",
+	"books-i-own",
+	"series",
+	"favourites",
+	"audiobook",
+	"novels"
+]
+
+def getTopShelves(shelves, n):
+	return filter(lambda s: s not in excludedShelves,
+		map(lambda s: s["@name"], shelves))[:5]
+
 def getBookInformation(bid):
 	apiUrl = 'https://www.goodreads.com/book/show/{0}?format=xml'
 	r = makeRequest(apiUrl.format(bid))
@@ -63,7 +81,6 @@ def getBookInformation(bid):
 	return {
 		"bookId": book["id"],
 		"bookTitle": book["title"],
-		"bookISBN": book["isbn"],
 		"bookPublisherYear": book["publication_year"],
 		"bookPublisherMonth": book["publication_month"],
 		"bookPublisherDay": book["publication_day"],
@@ -72,7 +89,8 @@ def getBookInformation(bid):
 		"bookReviewsNum": book["work"]["reviews_count"]["#text"],
 		"bookRatingsNum": book["ratings_count"],
 		"bookRatingsDist": book["work"]["rating_dist"],
-		"bookAverageRating": book["average_rating"]
+		"bookAverageRating": book["average_rating"],
+		"bookShelves": getTopShelves(book["popular_shelves"]["shelf"], 5),
 	}
 
 def getBookUrlFromId(bid):

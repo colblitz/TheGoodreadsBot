@@ -1,0 +1,7 @@
+ordering of things (currently all the {{{}}}, then {{}}, then {})
+cache requests/responses
+genres vs shelves
+capitalize genres/shelves
+author search <<>>
+title with author {{blah | author}}
+

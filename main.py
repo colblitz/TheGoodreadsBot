@@ -19,9 +19,7 @@ reddit = praw.Reddit(user_agent=REDDITUSERNAME)
 def setupReddit():
 	try:
 		print "setting up reddit"
-		reddit.set_oauth_app_info(client_id=REDDITAPPID,
-															client_secret=REDDITAPPSECRET,
-															redirect_uri='http://127.0.0.1:65010/' 'authorize_callback')
+		reddit.set_oauth_app_info(client_id=REDDITAPPID, client_secret=REDDITAPPSECRET, redirect_uri='http://127.0.0.1:65010/' 'authorize_callback')
 		reddit.refresh_access_information(REDDITREFRESHTOKEN)
 		print "Reddit successfully set up"
 	except Exception as e:
@@ -31,38 +29,77 @@ def setupReddit():
 def shouldProcess(comment):
 	if Database.commentExists(comment.id):
 		return False
+	if (comment.author.name == REDDITUSERNAME):
+		Database.addComment(comment)
+		return False
 
 	# limit subreddits
 	# limit users
 	return True
 
-def generateReply(bookInfo, authorInfo):
-	return "[{0}]({1}), by {2}".format(bookInfo["bookTitle"], Goodreads.getBookUrlFromId(bookInfo["bookId"]), authorInfo["authorName"])
+def formatDate(bookInfo):
+	return bookInfo["bookPublisherMonth"].rjust(2, '0') + "/" + bookInfo["bookPublisherDay"].rjust(2, '0') + "/" + bookInfo["bookPublisherYear"]
+
+def generateReply(bookInfo, authorInfo, withStats = False, withDescription = False):
+	reply = ""
+	reply += u"[{0}]({1}) by {2}".format(
+		bookInfo["bookTitle"],
+		Goodreads.getBookUrlFromId(bookInfo["bookId"]),
+		authorInfo["authorName"])
+	if withStats:
+		reply += u"\n\n^(**Published:** {0} || **Rating:** {1} over {2} ratings || **Shelves:** {3})".format(
+			formatDate(bookInfo),
+			bookInfo["bookAverageRating"],
+			"{:,}".format(int(bookInfo["bookRatingsNum"])),
+			", ".join(bookInfo["bookShelves"]))
+	if withDescription:
+		reply += u"\n\n> " + bookInfo["bookDescription"].replace("<br><br>", "\n\n> ")
+	return reply
+
+def getInfo(searchText):
+	bookId, authorId = Goodreads.searchForBook(searchText)
+	bookInfo = Goodreads.getBookInformation(bookId)
+	authorInfo = Goodreads.getAuthorInformation(authorId)
+	print "got info"
+	return (bookInfo, authorInfo)
 
 def processComment(comment):
-	#ignores all "code" markup (i.e. anything between backticks)
+	print "Processing comment: " + comment.id
+	things = []
+
+	# ignores all "code" markup (i.e. anything between backticks)
 	comment.body = re.sub(r"\`(?s)(.*?)\`", "", comment.body)
 
-	things = []
-	for match in re.finditer("""\{{2}   # two open braces {{
-															([^}]*) # everything in between
-															\}{2}   # two end braces }} """,
-													 comment.body, re.X):
-		search = match.group(1)
-		bookId, authorId = Goodreads.searchForBook(search)
-		bookInfo = Goodreads.getBookInformation(bookId)
-		authorInfo = Goodreads.getAuthorInformation(authorId)
-		things.append((bookInfo, authorInfo))
+	# Things with stats and descriptions {{{Book Title}}}
+	for match in re.finditer("\{{3}([^}]*)\}{3}", comment.body, re.X):
+		things.append(getInfo(match.group(1)) + (True, True))
 
-	commentReply = ""
-	for thing in things:
-		commentReply += generateReply(thing[0], thing[1]) + "\n"
-	if commentReply != "":
+	# remove what we just processed
+	comment.body = re.sub(r"\{{3}([^}]*)\}{3}", "", comment.body)
+
+	# Things with stats {{Book Title}}
+	for match in re.finditer("\{{2}([^}]*)\}{2}", comment.body, re.X):
+		things.append(getInfo(match.group(1)) + (True, False))
+
+	# remove what we just processed
+	comment.body = re.sub(r"\{{2}([^}]*)\}{2}", "", comment.body)
+
+	# Basic things {Book Title}
+	for match in re.finditer("\{([^}]*)\}", comment.body, re.X):
+		things.append(getInfo(match.group(1)))
+
+	# remove what we just processed
+	comment.body = re.sub(r"\{([^}]*)\}", "", comment.body)
+
+	if things:
+		commentReply = "\n\n---\n\n".join(map(lambda t: generateReply(*t), things))
 		try:
 			comment.reply(commentReply)
 			print "Replied to comment"
 		except Exception as e:
 			traceback.print_exc()
+	else:
+		print "Nothing to process"
 
 def mainLoop():
 	print "Starting main loop"
