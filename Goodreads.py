@@ -5,12 +5,12 @@ import pprint
 import json
 import time
 
-import Config
+import config
 
 pp = pprint.PrettyPrinter(indent=2)
 
-GOODREADSKEY       = Config.goodreadsKey
-GOODREADSSECRET    = Config.goodreadsSecret
+GOODREADSKEY       = config.goodreadsKey
+GOODREADSSECRET    = config.goodreadsSecret
 
 def addApiKey(r):
 	if "?" in r:
@@ -104,6 +104,7 @@ def getAuthorInformation(aid):
 	author = authorInfo["GoodreadsResponse"]["author"]
 
 	return {
+		"authorId": author["id"],
 		"authorName": author["name"],
 		"authorFans": author["fans_count"]["#text"],
 		"authorDescription": author["about"],
@@ -111,7 +112,7 @@ def getAuthorInformation(aid):
 	}
 
 def getAuthorUrlFromId(aid):
-	return 'https://www.goodreads.com/author/show/{0}'.format(bid)
+	return 'https://www.goodreads.com/author/show/{0}'.format(aid)
 
 # searchForBook("Ender's Game", None)
 
